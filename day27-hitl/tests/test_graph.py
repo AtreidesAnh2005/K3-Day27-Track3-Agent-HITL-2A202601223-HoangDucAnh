@@ -200,7 +200,8 @@ def test_scenario_edit_executes_edited_value(tmp_path, monkeypatch):
     assert result["final_value"] == 20_000_000, "must execute the edited value, not the original"
 
     entries = models.read_audit_log()
-    assert any(e["decision"] == "edit" for e in entries)
+    edit_entry = next(e for e in entries if e["decision"] == "edit")
+    assert edit_entry["action_value"] == 20_000_000, "audit trail must record the edited value, not the original 50,000,000"
 
 
 def test_scenario_audit_log_never_overwrites_history(tmp_path, monkeypatch):

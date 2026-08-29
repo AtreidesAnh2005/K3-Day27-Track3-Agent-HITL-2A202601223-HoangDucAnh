@@ -115,6 +115,8 @@ def execute_low_risk_action(state: GraphState) -> dict:
         confidence=state["confidence_score"],
         reviewer_id="system_auto",
         decision="auto_approved",
+        action_value=state.get("action_value"),
+        status="auto_executed",
     )
     append_audit_entry(entry)
 
@@ -157,6 +159,8 @@ def execute_high_risk_action(state: GraphState) -> dict:
         confidence=state["confidence_score"],
         reviewer_id=reviewer_id,
         decision=decision,
+        action_value=final_value,
+        status=status,
     )
     append_audit_entry(entry)
 

@@ -4,6 +4,8 @@ from __future__ import annotations
 import json
 import os
 
+from typing import Optional
+
 from pydantic import BaseModel
 
 AUDIT_LOG_PATH = os.path.join(os.path.dirname(__file__), "audit_log.json")
@@ -16,6 +18,11 @@ class AuditEntry(BaseModel):
     confidence: float
     reviewer_id: str
     decision: str
+    # Optional extras (beyond the required 6 fields in Readme_1.md section 5.3)
+    # so the edited value and execution outcome are traceable per
+    # exercise.md Phase 6 ("edited arguments", "execution status").
+    action_value: Optional[float] = None
+    status: Optional[str] = None
 
 
 def read_audit_log(path: str | None = None) -> list[dict]:
