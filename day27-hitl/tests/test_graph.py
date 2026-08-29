@@ -227,3 +227,67 @@ def test_scenario_audit_log_never_overwrites_history(tmp_path, monkeypatch):
 
     entries = models.read_audit_log()
     assert len(entries) == 2, "each decision must append, not overwrite, prior entries"
+
+
+# ---------------------------------------------------------------------------
+# Error handling
+# ---------------------------------------------------------------------------
+
+def test_scenario_invalid_decision_does_not_execute_or_crash(tmp_path, monkeypatch):
+    """An unrecognized human_decision must be a safe no-op, not a crash or
+    an accidental execution."""
+    use_temp_audit_log(monkeypatch, tmp_path)
+    graph = build_graph()
+    config = {"configurable": {"thread_id": "test-invalid-decision"}}
+
+    graph.invoke(
+        {
+            "customer_id": "CUST005",
+            "customer_data": {
+                "proposed_action": "increase_credit_limit",
+                "confidence_score": 0.9,
+                "reasoning": "test",
+                "action_value": 10_000_000,
+            },
+            "reviewer_id": "operator_01",
+        },
+        config,
+    )
+
+    graph.update_state(config, {"human_decision": "maybe_later", "reviewer_id": "operator_01"})
+    result = graph.invoke(None, config)
+
+    assert result["status"] == "pending_review"
+    assert result.get("final_action") is None
+    assert models.read_audit_log() == [], "no audit entry should be written without a real decision"
+
+
+def test_scenario_resume_twice_does_not_duplicate_side_effect(tmp_path, monkeypatch):
+    """Calling invoke(None, config) again on an already-finished thread must
+    not re-run execute_high_risk_action (no duplicate audit entry)."""
+    use_temp_audit_log(monkeypatch, tmp_path)
+    graph = build_graph()
+    config = {"configurable": {"thread_id": "test-double-resume"}}
+
+    graph.invoke(
+        {
+            "customer_id": "CUST006",
+            "customer_data": {
+                "proposed_action": "increase_credit_limit",
+                "confidence_score": 0.9,
+                "reasoning": "test",
+                "action_value": 10_000_000,
+            },
+            "reviewer_id": "operator_01",
+        },
+        config,
+    )
+    graph.update_state(config, {"human_decision": "approve", "reviewer_id": "operator_01"})
+    graph.invoke(None, config)
+
+    # Thread has already finished (snapshot.next == ()); resuming again must
+    # not re-execute the action a second time.
+    graph.invoke(None, config)
+
+    entries = models.read_audit_log()
+    assert len(entries) == 1, "resuming a finished thread must not duplicate the side effect"
