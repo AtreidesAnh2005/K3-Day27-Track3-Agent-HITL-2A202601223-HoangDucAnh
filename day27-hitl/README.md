@@ -29,9 +29,14 @@ Yêu cầu Python 3.10+.
 
 ## 2. Environment variables
 
-Không cần API key — `evaluate_customer` dùng mock/heuristic thay cho gọi
-LLM thật, để phần HITL luôn demo/test được mà không phụ thuộc dịch vụ bên
-ngoài.
+Không cần API key. `evaluate_customer` dùng mock/heuristic thay cho gọi
+LLM thật (đúng như Readme_1.md 5.4 cho phép: "hardcode mock LLM output
+hoặc dùng prompt cơ bản"), để phần HITL luôn demo/test được mà không phụ
+thuộc dịch vụ bên ngoài hay tốn chi phí API khi chạy CI/tests.
+
+Nếu muốn nối `evaluate_customer` với một LLM thật, đọc API key từ biến
+môi trường (không hard-code) và tạo `.env.example` liệt kê tên biến cần
+thiết — không commit `.env`.
 
 ## 3. Start application
 
@@ -63,11 +68,17 @@ Mở trình duyệt tại URL Streamlit in ra (mặc định `http://localhost:8
 python -m pytest tests/ -v
 ```
 
-10 test bao phủ: agent reasoning output hợp lệ, hard rule (policy
+12 test bao phủ: agent reasoning output hợp lệ, hard rule (policy
 override luôn thắng confidence), auto-execute, escalation do confidence
-thấp, và toàn bộ luồng interrupt → approve/edit/reject → resume → audit
-log (bao gồm việc action tuyệt đối không chạy trước khi có quyết định của
-con người, và audit log không bị ghi đè).
+thấp, toàn bộ luồng interrupt → approve/edit/reject → resume → audit log
+(bao gồm việc action tuyệt đối không chạy trước khi có quyết định của con
+người, audit log không bị ghi đè, giá trị edit được ghi đúng), cùng 2 test
+lỗi cơ bản (decision không hợp lệ, resume một thread đã xong hai lần).
+
+## Reflection
+
+Trả lời 3 Reflection Questions (Readme_1.md mục 12) ở
+[`REFLECTION.md`](REFLECTION.md).
 
 ## Project structure
 
