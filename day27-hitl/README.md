@@ -29,14 +29,32 @@ Yêu cầu Python 3.10+.
 
 ## 2. Environment variables
 
-Không cần API key. `evaluate_customer` dùng mock/heuristic thay cho gọi
-LLM thật (đúng như Readme_1.md 5.4 cho phép: "hardcode mock LLM output
-hoặc dùng prompt cơ bản"), để phần HITL luôn demo/test được mà không phụ
-thuộc dịch vụ bên ngoài hay tốn chi phí API khi chạy CI/tests.
+API key là **tùy chọn**, không bắt buộc để pass lab — Readme_1.md 5.4 cho
+phép "hardcode mock LLM output" và mọi test đều chạy offline/free (LLM
+call bị mock trong `tests/`).
 
-Nếu muốn nối `evaluate_customer` với một LLM thật, đọc API key từ biến
-môi trường (không hard-code) và tạo `.env.example` liệt kê tên biến cần
-thiết — không commit `.env`.
+Nếu muốn `evaluate_customer` gọi **OpenAI thật** thay vì heuristic:
+
+```bash
+cp .env.example .env
+# rồi điền OPENAI_API_KEY vào .env (đã gitignore, không bao giờ bị commit)
+```
+
+`app.py` tự load `.env` bằng `python-dotenv`. Model mặc định là
+`gpt-4o-mini`, đổi bằng biến `OPENAI_MODEL` nếu muốn.
+
+Thứ tự ưu tiên trong `evaluate_customer` (xem `graph.py`):
+
+1. `customer_data["proposed_action"]` được set thẳng (dùng cho test/demo
+   không cần mạng).
+2. Có `OPENAI_API_KEY` → gọi OpenAI thật (`_llm_evaluate`), model phải trả
+   JSON với `proposed_action`/`confidence_score`/`reasoning`.
+3. Không có key, hoặc gọi API lỗi (mạng/auth/JSON không hợp lệ) → fallback
+   an toàn về heuristic rule-based, **không crash**.
+
+Dù dùng LLM thật hay không, **hard rule luôn thắng**: nếu model tự đề
+xuất `increase_credit_limit` với confidence 0.99, `route_action` vẫn bắt
+buộc human review — đã verify bằng smoke test thật với `gpt-4o-mini`.
 
 ## 3. Start application
 
@@ -68,12 +86,15 @@ Mở trình duyệt tại URL Streamlit in ra (mặc định `http://localhost:8
 python -m pytest tests/ -v
 ```
 
-12 test bao phủ: agent reasoning output hợp lệ, hard rule (policy
-override luôn thắng confidence), auto-execute, escalation do confidence
-thấp, toàn bộ luồng interrupt → approve/edit/reject → resume → audit log
-(bao gồm việc action tuyệt đối không chạy trước khi có quyết định của con
-người, audit log không bị ghi đè, giá trị edit được ghi đúng), cùng 2 test
-lỗi cơ bản (decision không hợp lệ, resume một thread đã xong hai lần).
+14 test bao phủ: agent reasoning output hợp lệ, việc dùng kết quả LLM khi
+có (mocked, không gọi API thật) và fallback khi không có key, hard rule
+(policy override luôn thắng confidence), auto-execute, escalation do
+confidence thấp, toàn bộ luồng interrupt → approve/edit/reject → resume →
+audit log (bao gồm việc action tuyệt đối không chạy trước khi có quyết
+định của con người, audit log không bị ghi đè, giá trị edit được ghi
+đúng), cùng 2 test lỗi cơ bản (decision không hợp lệ, resume một thread
+đã xong hai lần). Toàn bộ test chạy offline/free dù `.env` có key thật
+hay không.
 
 ## Reflection
 
@@ -85,10 +106,11 @@ Trả lời 3 Reflection Questions (Readme_1.md mục 12) ở
 ```text
 day27-hitl/
 ├── app.py             # Streamlit human approval interface
-├── graph.py            # GraphState, agent node, routing, graph compile
+├── graph.py            # GraphState, agent node (heuristic + OpenAI), routing, graph compile
 ├── models.py            # AuditEntry (pydantic) + audit log helpers
 ├── audit_log.json        # append-only audit trail
 ├── requirements.txt
+├── .env.example          # OPENAI_API_KEY / OPENAI_MODEL template
 └── tests/
-    └── test_graph.py     # HITL scenario tests
+    └── test_graph.py     # HITL scenario tests (LLM always mocked)
 ```

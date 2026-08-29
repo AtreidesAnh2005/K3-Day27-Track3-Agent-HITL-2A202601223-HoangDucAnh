@@ -1,7 +1,11 @@
 """Streamlit Human Approval Interface for the churn-risk HITL agent."""
+import os
 import time
 
 import streamlit as st
+from dotenv import load_dotenv
+
+load_dotenv()  # loads OPENAI_API_KEY / OPENAI_MODEL from .env if present
 
 from graph import build_graph
 from models import read_audit_log
@@ -17,6 +21,10 @@ graph = st.session_state.graph
 
 st.title("HITL Approval Dashboard")
 st.caption("Churn-risk agent — proposals for high-risk / low-confidence actions pause here for human review.")
+if os.environ.get("OPENAI_API_KEY"):
+    st.caption(f"🟢 Agent reasoning: real OpenAI call ({os.environ.get('OPENAI_MODEL', 'gpt-4o-mini')})")
+else:
+    st.caption("⚪ Agent reasoning: heuristic mock (no OPENAI_API_KEY set)")
 
 with st.sidebar:
     st.header("New Customer Evaluation")

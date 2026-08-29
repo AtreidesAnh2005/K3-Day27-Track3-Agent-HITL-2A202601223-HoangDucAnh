@@ -7,10 +7,22 @@ approve / edit / reject -> resume -> audit-log flow.
 import os
 import sys
 
+import pytest
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+import graph  # noqa: E402
 import models  # noqa: E402
 from graph import build_graph, evaluate_customer, route_action  # noqa: E402
+
+
+@pytest.fixture(autouse=True)
+def no_real_llm_calls(monkeypatch):
+    """Tests must never hit the real OpenAI API, even if OPENAI_API_KEY is
+    set in the developer's shell/.env - keeps the suite free, offline and
+    deterministic. Tests that want to exercise the LLM path mock the return
+    value of _llm_evaluate explicitly instead."""
+    monkeypatch.setattr(graph, "_llm_evaluate", lambda customer_data: None)
 
 
 def make_state(**overrides):
@@ -51,6 +63,31 @@ def test_evaluate_customer_high_churn_proposes_credit_increase():
     state = make_state(customer_data={"churn_probability": 0.9})
     result = evaluate_customer(state)
     assert result["proposed_action"] == "increase_credit_limit"
+
+
+def test_evaluate_customer_uses_llm_result_when_available(monkeypatch):
+    """When _llm_evaluate succeeds, its output must be used instead of the
+    heuristic - mocked so this never calls the real OpenAI API."""
+    monkeypatch.setattr(
+        graph,
+        "_llm_evaluate",
+        lambda customer_data: {
+            "proposed_action": "send_email",
+            "action_value": None,
+            "confidence_score": 0.77,
+            "reasoning": "mocked llm reasoning (source: gpt-4o-mini)",
+        },
+    )
+    state = make_state(customer_data={"churn_probability": 0.3})
+    result = evaluate_customer(state)
+    assert result["proposed_action"] == "send_email"
+    assert result["confidence_score"] == 0.77
+    assert result["reasoning"] == "mocked llm reasoning (source: gpt-4o-mini)"
+
+
+def test_llm_evaluate_returns_none_without_api_key(monkeypatch):
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    assert graph._llm_evaluate({"churn_probability": 0.5}) is None
 
 
 # ---------------------------------------------------------------------------

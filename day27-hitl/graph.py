@@ -5,6 +5,8 @@ Flow: evaluate_customer -> route_action -> execute_low_risk_action
 """
 from __future__ import annotations
 
+import json
+import os
 from datetime import datetime, timezone
 from typing import Optional, TypedDict
 
@@ -16,6 +18,7 @@ from models import AuditEntry, append_audit_entry
 AGENT_ID = "churn-risk-agent"
 CONFIDENCE_THRESHOLD = 0.85
 HIGH_RISK_ACTIONS = {"increase_credit_limit"}
+ALLOWED_ACTIONS = {"send_email", "increase_credit_limit"}
 
 
 class GraphState(TypedDict, total=False):
@@ -38,13 +41,80 @@ def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+def _llm_evaluate(customer_data: dict) -> Optional[dict]:
+    """Ask a real OpenAI model to propose an action for this customer.
+
+    Returns None (never raises) if OPENAI_API_KEY is unset, the openai
+    package isn't installed, or the call/response is invalid in any way -
+    callers must fall back to the deterministic heuristic in that case, per
+    exercise.md ("van phai lam duoc demo/test HITL bang mock neu API LLM
+    khong kha dung").
+    """
+    api_key = os.environ.get("OPENAI_API_KEY")
+    if not api_key:
+        return None
+
+    try:
+        from openai import OpenAI
+    except ImportError:
+        return None
+
+    model = os.environ.get("OPENAI_MODEL", "gpt-4o-mini")
+    churn_probability = customer_data.get("churn_probability", 0.5)
+    toi = customer_data.get("toi", 0)
+    requested_credit_increase = customer_data.get("requested_credit_increase", 50_000_000)
+
+    prompt = (
+        "You are a churn-risk retention agent for a bank. A customer has "
+        f"churn_probability={churn_probability:.2f} (0-1) and "
+        f"Total Operating Income (TOI)={toi}.\n\n"
+        "Propose exactly one retention action:\n"
+        '- "send_email": low-risk, reversible retention email.\n'
+        '- "increase_credit_limit": high-risk financial action.\n\n'
+        "Respond ONLY with a JSON object with keys:\n"
+        '  proposed_action: "send_email" or "increase_credit_limit"\n'
+        "  confidence_score: float between 0.0 and 1.0\n"
+        "  reasoning: one or two sentences explaining the proposal\n"
+        "  action_value: number (around "
+        f"{requested_credit_increase} if proposed_action is "
+        "increase_credit_limit, else null)"
+    )
+
+    try:
+        client = OpenAI(api_key=api_key)
+        response = client.chat.completions.create(
+            model=model,
+            messages=[{"role": "user", "content": prompt}],
+            response_format={"type": "json_object"},
+            temperature=0.2,
+        )
+        data = json.loads(response.choices[0].message.content)
+
+        proposed_action = data["proposed_action"]
+        confidence_score = float(data["confidence_score"])
+        if proposed_action not in ALLOWED_ACTIONS or not (0.0 <= confidence_score <= 1.0):
+            return None
+
+        return {
+            "proposed_action": proposed_action,
+            "action_value": data.get("action_value"),
+            "confidence_score": round(confidence_score, 2),
+            "reasoning": f"{data.get('reasoning', '').strip()} (source: {model})",
+        }
+    except Exception as exc:  # network/auth/parsing errors must not crash the graph
+        print(f"[evaluate_customer] OpenAI call failed, falling back to heuristic: {exc}")
+        return None
+
+
 def evaluate_customer(state: GraphState) -> dict:
     """Agent reasoning node.
 
     Estimates churn risk from TOI/churn probability and proposes an action.
-    A test/demo caller may inject an explicit mock LLM output via
-    customer_data (proposed_action/confidence_score/reasoning/action_value)
-    instead of relying on the heuristic below.
+    Resolution order:
+      1. Explicit mock LLM output injected via customer_data (used by
+         tests/demos for deterministic, network-free results).
+      2. A real OpenAI call, if OPENAI_API_KEY is set (see _llm_evaluate).
+      3. A deterministic heuristic fallback (no API required at all).
     """
     customer_data = state.get("customer_data") or {}
 
@@ -59,6 +129,10 @@ def evaluate_customer(state: GraphState) -> dict:
             "human_decision": None,
             "status": "proposed",
         }
+
+    llm_result = _llm_evaluate(customer_data)
+    if llm_result is not None:
+        return {**llm_result, "human_decision": None, "status": "proposed"}
 
     churn_probability = customer_data.get("churn_probability", 0.5)
     toi = customer_data.get("toi", 0)
