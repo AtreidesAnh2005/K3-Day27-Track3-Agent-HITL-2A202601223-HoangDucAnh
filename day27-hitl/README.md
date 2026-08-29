@@ -66,6 +66,21 @@ Mở trình duyệt tại URL Streamlit in ra (mặc định `http://localhost:8
 
 ## 4. Run HITL demo
 
+### 4.1. CLI demo (nhanh nhất, không cần mở browser)
+
+```bash
+python demo.py
+```
+
+Chạy 5 kịch bản qua đúng object `build_graph()` mà `app.py` dùng (gọi
+`graph.update_state()` + `graph.invoke(None, config)` giống hệt các nút
+Streamlit): auto-execute, hard-rule interrupt → Approve, → Reject, →
+Edit (giá trị thực thi 20,000,000 thay vì 50,000,000 gốc), và escalation
+do confidence thấp. In từng bước ra console và ghi vào `audit_log.json`
+(append-only) — file hiện có sẵn kết quả 5 lần chạy này làm bằng chứng.
+
+### 4.2. Streamlit UI (tương tác trực tiếp)
+
 1. Trong sidebar, nhập `Customer ID`, kéo `Churn probability`, rồi bấm
    **Run Agent Evaluation**.
    - `Churn probability >= 0.7` → agent đề xuất `increase_credit_limit`
@@ -106,11 +121,12 @@ Trả lời 3 Reflection Questions (Readme_1.md mục 12) ở
 ```text
 day27-hitl/
 ├── app.py             # Streamlit human approval interface
-├── graph.py            # GraphState, agent node (heuristic + OpenAI), routing, graph compile
-├── models.py            # AuditEntry (pydantic) + audit log helpers
-├── audit_log.json        # append-only audit trail
+├── demo.py             # CLI end-to-end demo (5 scenarios, no browser needed)
+├── graph.py             # GraphState, agent node (heuristic + OpenAI), routing, graph compile
+├── models.py             # AuditEntry (pydantic) + audit log helpers
+├── audit_log.json         # append-only audit trail (pre-populated by demo.py)
 ├── requirements.txt
-├── .env.example          # OPENAI_API_KEY / OPENAI_MODEL template
+├── .env.example           # OPENAI_API_KEY / OPENAI_MODEL template
 └── tests/
-    └── test_graph.py     # HITL scenario tests (LLM always mocked)
+    └── test_graph.py      # HITL scenario tests (LLM always mocked)
 ```

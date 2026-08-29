@@ -1,1 +1,52 @@
-[]
+[
+  {
+    "timestamp": "2026-08-29T15:00:50.139432+00:00",
+    "agent_id": "churn-risk-agent",
+    "action": "send_email",
+    "confidence": 0.88,
+    "reviewer_id": "system_auto",
+    "decision": "auto_approved",
+    "action_value": null,
+    "status": "auto_executed"
+  },
+  {
+    "timestamp": "2026-08-29T15:00:50.146066+00:00",
+    "agent_id": "churn-risk-agent",
+    "action": "increase_credit_limit",
+    "confidence": 0.97,
+    "reviewer_id": "operator_01",
+    "decision": "approve",
+    "action_value": 50000000.0,
+    "status": "executed"
+  },
+  {
+    "timestamp": "2026-08-29T15:00:50.168921+00:00",
+    "agent_id": "churn-risk-agent",
+    "action": "increase_credit_limit",
+    "confidence": 0.97,
+    "reviewer_id": "operator_01",
+    "decision": "reject",
+    "action_value": null,
+    "status": "rejected"
+  },
+  {
+    "timestamp": "2026-08-29T15:00:50.196345+00:00",
+    "agent_id": "churn-risk-agent",
+    "action": "increase_credit_limit",
+    "confidence": 0.97,
+    "reviewer_id": "operator_01",
+    "decision": "edit",
+    "action_value": 20000000.0,
+    "status": "executed_edited"
+  },
+  {
+    "timestamp": "2026-08-29T15:00:50.223969+00:00",
+    "agent_id": "churn-risk-agent",
+    "action": "send_email",
+    "confidence": 0.8,
+    "reviewer_id": "operator_01",
+    "decision": "approve",
+    "action_value": null,
+    "status": "executed"
+  }
+]
